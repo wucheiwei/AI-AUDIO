@@ -26,7 +26,14 @@ const time = computed(() =>
 
       <div v-else class="audio">
         <audio :src="message.audioUrl" controls preload="metadata" />
-        <span class="duration">🎙️ {{ formatDuration(message.duration) }}</span>
+        <span class="duration">
+          🎙️ {{ formatDuration(message.duration) }}
+          <template v-if="message.uploadStatus === 'uploading'">· 上傳中…</template>
+          <template v-else-if="message.uploadStatus === 'done'">· 已儲存 ✓</template>
+        </span>
+        <span v-if="message.uploadStatus === 'error'" class="upload-error">
+          ⚠️ 上傳失敗：{{ message.uploadError }}
+        </span>
       </div>
 
       <time class="stamp">{{ time }}</time>
@@ -102,6 +109,13 @@ const time = computed(() =>
 .duration {
   font-size: 13px;
   opacity: 0.75;
+}
+.upload-error {
+  font-size: 13px;
+  color: #ffd7d7;
+}
+.bubble:not(.user) .upload-error {
+  color: #e5484d;
 }
 
 .stamp {

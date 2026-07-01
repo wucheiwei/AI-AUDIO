@@ -2,8 +2,9 @@
 import { nextTick, ref } from 'vue'
 import ChatComposer from './components/ChatComposer.vue'
 import MessageBubble from './components/MessageBubble.vue'
-import type { Message } from './types'
+import type { AudioMessage, Message } from './types'
 import { formatDuration, type Recording } from './composables/useRecorder'
+import { uploadRecording } from './api/recordings'
 
 const messages = ref<Message[]>([])
 const isThinking = ref(false)
@@ -24,6 +25,11 @@ async function scrollToBottom() {
 function pushMessage(message: Message) {
   messages.value.push(message)
   scrollToBottom()
+}
+
+function updateAudioMessage(id: string, patch: Partial<AudioMessage>) {
+  const msg = messages.value.find((m) => m.id === id)
+  if (msg && msg.kind === 'audio') Object.assign(msg, patch)
 }
 
 /**
@@ -55,18 +61,28 @@ function handleSendText(text: string) {
   replyFromAgent(`（示範回覆）我收到你的訊息了：「${text}」\n之後這裡會接上真正的 AI agent。`)
 }
 
-function handleSendAudio(recording: Recording) {
+async function handleSendAudio(recording: Recording) {
+  const id = newId()
   pushMessage({
-    id: newId(),
+    id,
     role: 'user',
     kind: 'audio',
     audioUrl: recording.url,
     duration: recording.duration,
     createdAt: Date.now(),
+    uploadStatus: 'uploading',
   })
-  replyFromAgent(
-    `（示範回覆）已收到你的語音訊息（長度 ${formatDuration(recording.duration)}）。\n之後會送去做語音辨識並交給 AI 處理。`,
-  )
+
+  try {
+    const result = await uploadRecording(recording)
+    updateAudioMessage(id, { uploadStatus: 'done' })
+    replyFromAgent(
+      `（示範回覆）已收到你的語音訊息（長度 ${formatDuration(recording.duration)}），已存成 ${result.file.filename}。\n之後會送去做語音辨識並交給 AI 處理。`,
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '上傳失敗'
+    updateAudioMessage(id, { uploadStatus: 'error', uploadError: message })
+  }
 }
 </script>
 
