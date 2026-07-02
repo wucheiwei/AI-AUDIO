@@ -9,9 +9,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-
+import { AgentRunsService } from '../agent-runs/agent-runs.service';
+import { AudioProcessingService } from '../audio-processing/audio-processing.service';
 @Controller('recordings')
 export class RecordingsController {
+  constructor(
+    private readonly agentRunsService: AgentRunsService,
+    private readonly audioProcessingService: AudioProcessingService,
+  ) {}
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -58,16 +63,11 @@ export class RecordingsController {
     if (!file) {
       throw new BadRequestException('沒有收到錄音檔案');
     }
-
+    const run = this.agentRunsService.createFromRecording(file);
+    this.audioProcessingService.processRun(run.id);
     return {
-      message: '錄音上傳成功',
-      file: {
-        originalName: file.originalname,
-        filename: file.filename,
-        mimetype: file.mimetype,
-        size: file.size,
-        path: file.path,
-      },
+      message: '錄音上傳成功，已建立 Agent Run',
+      run,
     };
   }
 }
