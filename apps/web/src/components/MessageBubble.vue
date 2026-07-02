@@ -34,6 +34,30 @@ const time = computed(() =>
         <span v-if="message.uploadStatus === 'error'" class="upload-error">
           ⚠️ 上傳失敗：{{ message.uploadError }}
         </span>
+
+        <!-- 後端處理狀態（每 2 秒輪詢 /agent-runs/:id）-->
+        <span
+          v-if="
+            message.runStatus === 'pending' ||
+            message.runStatus === 'processing'
+          "
+          class="run-status"
+        >
+          ⏳ 處理中…
+        </span>
+        <a
+          v-else-if="message.runStatus === 'completed' && message.downloadUrl"
+          class="download-btn"
+          :href="message.downloadUrl"
+        >
+          ⬇️ 下載處理結果
+        </a>
+        <span
+          v-else-if="message.runStatus === 'failed'"
+          class="upload-error"
+        >
+          ⚠️ 處理失敗：{{ message.runError }}
+        </span>
       </div>
 
       <time class="stamp">{{ time }}</time>
@@ -116,6 +140,34 @@ const time = computed(() =>
 }
 .bubble:not(.user) .upload-error {
   color: #e5484d;
+}
+
+.run-status {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.download-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  text-decoration: none;
+}
+/* 使用者泡泡是深色 accent 底 → 用白底按鈕 */
+.bubble.user .download-btn {
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid #fff;
+}
+.bubble:not(.user) .download-btn {
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
 }
 
 .stamp {

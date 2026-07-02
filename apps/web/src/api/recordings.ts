@@ -1,6 +1,9 @@
 import type { Recording } from '../composables/useRecorder'
+import type { AgentRunStatus } from '../types'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
+// 後端 API 網址。預設留空 → 相對路徑（同源）；實務上由 .env.local 的
+// VITE_API_BASE_URL 指向後端（本機開發／tunnel demo）。
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export interface UploadedFile {
   originalName: string
@@ -10,9 +13,20 @@ export interface UploadedFile {
   path: string
 }
 
+/** 對應後端 AgentRun（JSON 化後日期為字串） */
+export interface AgentRun {
+  id: string
+  status: AgentRunStatus
+  inputFile: UploadedFile
+  result?: { outputPath?: string; message?: string }
+  errorMessage?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UploadResponse {
   message: string
-  file: UploadedFile
+  run: AgentRun
 }
 
 /** 後端 fileFilter 接受的音檔格式 → 對應副檔名 */
@@ -52,6 +66,20 @@ export async function uploadRecording(
   }
 
   return (await res.json()) as UploadResponse
+}
+
+/** 查詢單一 Agent Run 狀態：GET /agent-runs/:id */
+export async function getAgentRun(id: string): Promise<AgentRun> {
+  const res = await fetch(`${API_BASE}/agent-runs/${id}`)
+  if (!res.ok) {
+    throw new Error(await readError(res))
+  }
+  return (await res.json()) as AgentRun
+}
+
+/** 組出下載網址：GET /agent-runs/:id/download */
+export function agentRunDownloadUrl(id: string): string {
+  return `${API_BASE}/agent-runs/${id}/download`
 }
 
 /** 盡量從後端回應取出可讀的錯誤訊息 */

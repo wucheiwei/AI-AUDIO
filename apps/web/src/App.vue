@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, onUnmounted, ref } from 'vue'
 import ChatComposer from './components/ChatComposer.vue'
 import MessageBubble from './components/MessageBubble.vue'
 import type { AudioMessage, Message } from './types'
-import { formatDuration, type Recording } from './composables/useRecorder'
-import { uploadRecording } from './api/recordings'
+import type { Recording } from './composables/useRecorder'
+import { agentRunDownloadUrl, getAgentRun, uploadRecording } from './api/recordings'
+
+/** 輪詢後端任務狀態的間隔（毫秒）*/
+const POLL_INTERVAL = 2000
 
 const messages = ref<Message[]>([])
 const isThinking = ref(false)
@@ -75,15 +78,66 @@ async function handleSendAudio(recording: Recording) {
 
   try {
     const result = await uploadRecording(recording)
-    updateAudioMessage(id, { uploadStatus: 'done' })
-    replyFromAgent(
-      `（示範回覆）已收到你的語音訊息（長度 ${formatDuration(recording.duration)}），已存成 ${result.file.filename}。\n之後會送去做語音辨識並交給 AI 處理。`,
-    )
+    updateAudioMessage(id, {
+      uploadStatus: 'done',
+      runId: result.run.id,
+      runStatus: result.run.status,
+    })
+    // 上傳成功後開始輪詢後端處理狀態
+    pollRun(id, result.run.id)
   } catch (err) {
     const message = err instanceof Error ? err.message : '上傳失敗'
     updateAudioMessage(id, { uploadStatus: 'error', uploadError: message })
   }
 }
+
+// 記錄進行中的輪詢計時器，元件卸載時一併清除，避免殘留
+const pollTimers = new Set<ReturnType<typeof setTimeout>>()
+
+/**
+ * 每 POLL_INTERVAL 毫秒查一次 GET /agent-runs/:id，
+ * 直到狀態變成 completed（顯示下載按鈕）或 failed（顯示錯誤）為止。
+ */
+function pollRun(messageId: string, runId: string) {
+  const tick = async () => {
+    try {
+      const run = await getAgentRun(runId)
+      if (run.status === 'completed') {
+        updateAudioMessage(messageId, {
+          runStatus: 'completed',
+          downloadUrl: agentRunDownloadUrl(runId),
+        })
+        return
+      }
+      if (run.status === 'failed') {
+        updateAudioMessage(messageId, {
+          runStatus: 'failed',
+          runError: run.errorMessage ?? '處理失敗',
+        })
+        return
+      }
+      // 仍在 pending / processing → 更新狀態並排下一次輪詢
+      updateAudioMessage(messageId, { runStatus: run.status })
+      schedule()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '查詢處理狀態失敗'
+      updateAudioMessage(messageId, { runStatus: 'failed', runError: message })
+    }
+  }
+  const schedule = () => {
+    const timer = setTimeout(() => {
+      pollTimers.delete(timer)
+      void tick()
+    }, POLL_INTERVAL)
+    pollTimers.add(timer)
+  }
+  schedule()
+}
+
+onUnmounted(() => {
+  pollTimers.forEach((timer) => clearTimeout(timer))
+  pollTimers.clear()
+})
 </script>
 
 <template>
