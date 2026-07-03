@@ -12,8 +12,17 @@ export type AgentRun = {
   };
   result?: {
     outputPath?: string;
+    outputSize?: number;
     message?: string;
   };
+  audioInfo?: {
+    duration: number;
+    formatNmae?: string;
+    foratLongName?: string;
+    sampleRate?: number;
+    channels?: number;
+    bitRate?: number;
+  }
   errorMessage?: string;
   createdAt: Date;
   updatedAt: Date;

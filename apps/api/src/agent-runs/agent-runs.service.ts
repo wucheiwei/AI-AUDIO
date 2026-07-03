@@ -56,11 +56,25 @@ export class AgentRunsService {
 
         return run;
     }
-    markCompleted(id: string, outputPath: string) {
+    markCompleted(
+        id: string, 
+        result: {
+            outputPath: string;
+            outputSize?: number;
+            audioInfo?: {
+                duration?: number;
+                formatName?: string;
+                formatLongName?: string;
+                sampleRate?: number;
+                channels?: number;
+                bitRate?: number;
+            }
+        }
+    ) {
         const run = this.agentRunsRepository.update(id, {
             status: 'completed',
             result: {
-                outputPath,
+                ...result,
                 message: '音訊處理完成',
             },
         });
